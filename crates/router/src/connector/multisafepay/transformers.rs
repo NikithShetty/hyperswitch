@@ -68,14 +68,16 @@ impl TryFrom<&types::PaymentsAuthorizeRouterData> for MultisafepayPaymentsReques
 
 #[derive(Default, Debug, Serialize, Eq, PartialEq)]
 pub struct MultisafepayCaptureRequest {
-    amount_to_capture: Option<i64>,
+    amount: Option<i64>,
+    new_order_status: String,
 }
 
 impl TryFrom<&types::PaymentsCaptureRouterData> for MultisafepayCaptureRequest {
     type Error = error_stack::Report<errors::ConnectorError>;
     fn try_from(item: &types::PaymentsCaptureRouterData) -> Result<Self, Self::Error> {
         Ok(Self {
-            amount_to_capture: item.request.amount_to_capture,
+            amount: item.request.amount_to_capture,
+            new_order_status: "completed".to_string()
         })
     }
 }

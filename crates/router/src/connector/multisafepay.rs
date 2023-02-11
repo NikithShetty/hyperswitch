@@ -192,8 +192,9 @@ impl ConnectorIntegration<api::Capture, types::PaymentsCaptureData, types::Payme
             .build_query_params(req, connectors)
             .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
         Ok(format!(
-            "{}json/orders?{}",
+            "{}json/orders/{}/capture?{}",
             self.base_url(connectors),
+            req.payment_id,
             query_params
         ))
     }
