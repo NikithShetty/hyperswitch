@@ -1,5 +1,4 @@
 use crate::{
-    compatibility::stripe::payment_intents::types::StripePaymentMethodOptions,
     core::errors,
     types::{self, api, storage::enums},
 };
@@ -172,60 +171,107 @@ impl<F, T>
 // REFUND :
 // Type definition for RefundRequest
 #[derive(Default, Debug, Serialize)]
-pub struct MultisafepayRefundRequest {}
+pub struct MultisafepayRefundRequest {
+    currency: String,
+    amount: i64,
+}
 
 impl<F> TryFrom<&types::RefundsRouterData<F>> for MultisafepayRefundRequest {
     type Error = error_stack::Report<errors::ParsingError>;
-    fn try_from(_item: &types::RefundsRouterData<F>) -> Result<Self, Self::Error> {
-        todo!()
+    fn try_from(item: &types::RefundsRouterData<F>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            currency: item.request.currency.to_string(),
+            amount: item.request.refund_amount,
+        })
     }
 }
 
 // Type definition for Refund Response
-
-#[allow(dead_code)]
-#[derive(Debug, Serialize, Default, Deserialize, Clone)]
-pub enum RefundStatus {
-    Succeeded,
-    Failed,
-    #[default]
-    Processing,
-}
-
-impl From<RefundStatus> for enums::RefundStatus {
-    fn from(item: RefundStatus) -> Self {
-        match item {
-            RefundStatus::Succeeded => Self::Success,
-            RefundStatus::Failed => Self::Failure,
-            RefundStatus::Processing => Self::Pending,
-            //TODO: Review mapping
-        }
-    }
-}
-
-//TODO: Fill the struct with respective fields
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
-pub struct RefundResponse {}
+pub struct RefundResponse {
+    success: bool,
+    data: RefundResponseData,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RefundResponseData {
+    transaction_id: u32,
+    refund_id: u32,
+}
 
 impl TryFrom<types::RefundsResponseRouterData<api::Execute, RefundResponse>>
     for types::RefundsRouterData<api::Execute>
 {
     type Error = error_stack::Report<errors::ParsingError>;
     fn try_from(
-        _item: types::RefundsResponseRouterData<api::Execute, RefundResponse>,
+        item: types::RefundsResponseRouterData<api::Execute, RefundResponse>,
     ) -> Result<Self, Self::Error> {
-        todo!()
+        let refund_status = 
+            match item.response.success {
+                true => enums::RefundStatus::Pending,
+                false => enums::RefundStatus::Failure
+            };
+
+        Ok(Self {
+            response: Ok(types::RefundsResponseData {
+                connector_refund_id: item.response.data.refund_id.to_string().clone(),
+                refund_status,
+            }),
+            ..item.data
+        })
     }
 }
 
-impl TryFrom<types::RefundsResponseRouterData<api::RSync, RefundResponse>>
+
+//TODO: Fill the struct with respective fields
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum RefundSyncStatus {
+    Reserved,
+    Declined,
+    #[default]
+    Completed,
+}
+
+impl From<RefundSyncStatus> for enums::RefundStatus {
+    fn from(item: RefundSyncStatus) -> Self {
+        match item {
+            RefundSyncStatus::Reserved => Self::Pending,
+            RefundSyncStatus::Completed => Self::Success,
+            RefundSyncStatus::Declined => Self::Failure,
+        }
+    }
+}
+
+//TODO: Fill the struct with respective fields
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RefundSyncResponse {
+    success: bool,
+    data: RefundSyncResponseData
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RefundSyncResponseData {
+    transaction_id: u32,
+    order_id: String,
+    status: RefundSyncStatus
+}
+
+impl TryFrom<types::RefundsResponseRouterData<api::RSync, RefundSyncResponse>>
     for types::RefundsRouterData<api::RSync>
 {
     type Error = error_stack::Report<errors::ParsingError>;
     fn try_from(
-        _item: types::RefundsResponseRouterData<api::RSync, RefundResponse>,
+        item: types::RefundsResponseRouterData<api::RSync, RefundSyncResponse>,
     ) -> Result<Self, Self::Error> {
-        todo!()
+        let refund_status = enums::RefundStatus::from(item.response.data.status);
+        Ok(Self {
+            response: Ok(types::RefundsResponseData {
+                connector_refund_id: item.response.data.order_id.clone(),
+                refund_status,
+            }),
+            ..item.data
+        })
     }
 }
 

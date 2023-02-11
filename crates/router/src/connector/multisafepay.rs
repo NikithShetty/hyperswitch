@@ -376,8 +376,9 @@ impl ConnectorIntegration<api::Execute, types::RefundsData, types::RefundsRespon
             .build_query_params(req, connectors)
             .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
         Ok(format!(
-            "{}json/orders?{}",
+            "{}json/orders/{}/refunds?{}",
             self.base_url(connectors),
+            req.payment_id,
             query_params
         ))
     }
@@ -459,8 +460,9 @@ impl ConnectorIntegration<api::RSync, types::RefundsData, types::RefundsResponse
             .build_query_params(req, connectors)
             .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
         Ok(format!(
-            "{}json/orders?{}",
+            "{}json/orders/{}?{}",
             self.base_url(connectors),
+            req.payment_id,
             query_params
         ))
     }
@@ -486,9 +488,9 @@ impl ConnectorIntegration<api::RSync, types::RefundsData, types::RefundsResponse
         res: Response,
     ) -> CustomResult<types::RefundSyncRouterData, errors::ConnectorError> {
         logger::debug!(target: "router::connector::multisafepay", response=?res);
-        let response: multisafepay::RefundResponse = res
+        let response: multisafepay::RefundSyncResponse = res
             .response
-            .parse_struct("multisafepay RefundResponse")
+            .parse_struct("multisafepay RefundSyncResponse")
             .change_context(errors::ConnectorError::ResponseDeserializationFailed)?;
         types::ResponseRouterData {
             response,
