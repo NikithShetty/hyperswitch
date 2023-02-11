@@ -167,7 +167,60 @@ impl<F, T>
     }
 }
 
-//TODO: Fill the struct with respective fields
+//VOID
+#[derive(Default, Debug, Serialize)]
+pub struct MultisafepayCancelRequest {
+    status: String,
+}
+
+impl TryFrom<&types::PaymentsCancelRouterData> for MultisafepayCancelRequest {
+    type Error = error_stack::Report<errors::ParsingError>;
+    fn try_from(_item: &types::PaymentsCancelRouterData) -> Result<Self, Self::Error> {
+        Ok(Self {
+            status: "cancelled".to_string(),
+        })
+    }
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MultisafepayCancelResponse {
+    success: bool,
+}
+
+impl<F, T>
+    TryFrom<
+        types::ResponseRouterData<F, MultisafepayCancelResponse, T, types::PaymentsResponseData>,
+    > for types::RouterData<F, T, types::PaymentsResponseData>
+{
+    type Error = error_stack::Report<errors::ParsingError>;
+    fn try_from(
+        item: types::ResponseRouterData<
+            F,
+            MultisafepayCancelResponse,
+            T,
+            types::PaymentsResponseData,
+        >,
+    ) -> Result<Self, Self::Error> {
+        let void_status = 
+        match item.response.success {
+            true => enums::AttemptStatus::Voided,
+            false => enums::AttemptStatus::VoidFailed
+        };
+
+        Ok(Self {
+            status: void_status,
+            response: Ok(types::PaymentsResponseData::TransactionResponse {
+                resource_id: types::ResponseId::NoResponseId,
+                redirection_data: None,
+                redirect: false,
+                mandate_reference: None,
+                connector_metadata: None,
+            }),
+            ..item.data
+        })
+    }
+}
+
 // REFUND :
 // Type definition for RefundRequest
 #[derive(Default, Debug, Serialize)]
