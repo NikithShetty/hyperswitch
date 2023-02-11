@@ -8,24 +8,14 @@ use serde::{Deserialize, Serialize};
 //TODO: Fill the struct with respective fields
 #[derive(Default, Debug, Serialize, Eq, PartialEq)]
 pub struct MultisafepayPaymentsRequest {
+    #[serde(rename = "type")]
+    stype: String,
     gateway: MultisafeGateway,
     order_id: String,
     currency: String,
-    amount: i32,
-    description: String,
-    payment_options: MultisafepayPaymentOptions,
-    customer: MultisafepayCustomer,
-    checkout_options: MultisafeCheckoutOptions,
-}
-
-#[derive(Default, Clone, Deserialize, Debug, Serialize, Eq, PartialEq)]
-pub struct MultisafeCheckoutOptions {
-    validate_cart: bool,
-}
-
-#[derive(Default, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
-pub struct MultisafepayCustomer {
-    locale: String,
+    amount: String,
+    description: Option<String>,
+    gateway_info: MultisafepayGatewayInfo
 }
 
 #[derive(Default, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -39,14 +29,40 @@ pub enum MultisafeGateway {
 }
 
 #[derive(Default, Clone, Deserialize, Debug, Serialize, Eq, PartialEq)]
-pub struct MultisafepayPaymentOptions {
-    close_window: bool,
+pub struct MultisafepayGatewayInfo {
+    card_number: String,
+    card_expiry_date: String,
+    card_holder_name: String,
+    card_cvc: String
 }
+
+use masking::PeekInterface;
 
 impl TryFrom<&types::PaymentsAuthorizeRouterData> for MultisafepayPaymentsRequest {
     type Error = error_stack::Report<errors::ConnectorError>;
-    fn try_from(_item: &types::PaymentsAuthorizeRouterData) -> Result<Self, Self::Error> {
-        todo!()
+    fn try_from(item: &types::PaymentsAuthorizeRouterData) -> Result<Self, Self::Error> {
+        match item.request.payment_method_data {
+            api::PaymentMethod::Card(ref ccard) => {
+                let payment_request = Self {
+                    gateway: MultisafeGateway :: CREDITCARD,
+                    stype: "direct".to_string(),
+                    order_id: item.payment_id.to_string(),
+                    currency: item.request.currency.to_string(),
+                    amount: item.request.amount.to_string(),
+                    description: item.description.clone(),
+                    gateway_info: MultisafepayGatewayInfo {
+                        card_number: ccard.card_number.peek().clone(),
+                        card_expiry_date: format!("{}/{}", ccard.card_exp_month.peek().clone(), ccard.card_exp_year.peek().clone()),
+                        card_holder_name: ccard.card_holder_name.peek().clone(),
+                        card_cvc: ccard.card_cvc.peek().clone(),
+                    }
+                };
+                Ok(payment_request)
+            }
+            _ => Err(
+                errors::ConnectorError::NotImplemented("Current Payment Method".to_string()).into(),
+            ),
+        }
     }
 }
 
@@ -67,40 +83,39 @@ impl TryFrom<&types::ConnectorAuthType> for MultisafepayAuthType {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum MultisafepayPaymentStatus {
-    Succeeded,
-    Failed,
+    Initialized,
+    Uncleared,
+    Completed,
+    Void,
+    Expired,
     #[default]
-    Processing,
+    Declined,
 }
 
 impl From<MultisafepayPaymentStatus> for enums::AttemptStatus {
     fn from(item: MultisafepayPaymentStatus) -> Self {
         match item {
-            MultisafepayPaymentStatus::Succeeded => Self::Charged,
-            MultisafepayPaymentStatus::Failed => Self::Failure,
-            MultisafepayPaymentStatus::Processing => Self::Authorizing,
+            MultisafepayPaymentStatus::Initialized => Self::Started,
+            MultisafepayPaymentStatus::Uncleared => Self::AuthorizationFailed,
+            MultisafepayPaymentStatus::Completed => Self::Charged,
+            MultisafepayPaymentStatus::Void => Self::Voided,
+            MultisafepayPaymentStatus::Expired => Self::Failure,
+            MultisafepayPaymentStatus::Declined => Self::AuthenticationFailed,
         }
     }
 }
-
 //TODO: Fill the struct with respective fields
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MultisafepayPaymentsResponse {
     success: bool,
-    data: MultisafepayPaymentsData,
-    status: MultisafepayPaymentStatus,
+    data: MultisafepayPaymentsData
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MultisafepayPaymentsData {
-    gateway: String,
+    transaction_id: String,
     order_id: String,
-    currency: String,
-    amount: i32,
-    description: String,
-    payment_options: MultisafepayPaymentOptions,
-    customer: MultisafepayCustomer,
-    checkout_options: MultisafeCheckoutOptions,
+    status: MultisafepayPaymentStatus
 }
 
 impl<F, T>
@@ -118,7 +133,7 @@ impl<F, T>
         >,
     ) -> Result<Self, Self::Error> {
         Ok(Self {
-            status: enums::AttemptStatus::from(item.response.status),
+            status: enums::AttemptStatus::from(item.response.data.status),
             response: Ok(types::PaymentsResponseData::TransactionResponse {
                 resource_id: types::ResponseId::ConnectorTransactionId(item.response.data.order_id),
                 redirection_data: None,
