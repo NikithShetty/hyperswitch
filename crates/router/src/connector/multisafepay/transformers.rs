@@ -1,13 +1,51 @@
+use crate::{
+    compatibility::stripe::payment_intents::types::StripePaymentMethodOptions,
+    core::errors,
+    types::{self, api, storage::enums},
+};
 use serde::{Deserialize, Serialize};
-use crate::{core::errors,types::{self,api, storage::enums}};
 
 //TODO: Fill the struct with respective fields
 #[derive(Default, Debug, Serialize, Eq, PartialEq)]
-pub struct MultisafepayPaymentsRequest {}
+pub struct MultisafepayPaymentsRequest {
+    gateway: MultisafeGateway,
+    order_id: String,
+    currency: String,
+    amount: i32,
+    description: String,
+    payment_options: MultisafepayPaymentOptions,
+    customer: MultisafepayCustomer,
+    checkout_options: MultisafeCheckoutOptions,
+}
 
-impl TryFrom<&types::PaymentsAuthorizeRouterData> for MultisafepayPaymentsRequest  {
+#[derive(Default, Clone, Deserialize, Debug, Serialize, Eq, PartialEq)]
+pub struct MultisafeCheckoutOptions {
+    validate_cart: bool,
+}
+
+#[derive(Default, Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct MultisafepayCustomer {
+    locale: String,
+}
+
+#[derive(Default, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub enum MultisafeGateway {
+    #[default]
+    VISA,
+    AMEX,
+    CREDITCARD,
+    MAESTRO,
+    MASTERCARD,
+}
+
+#[derive(Default, Clone, Deserialize, Debug, Serialize, Eq, PartialEq)]
+pub struct MultisafepayPaymentOptions {
+    close_window: bool,
+}
+
+impl TryFrom<&types::PaymentsAuthorizeRouterData> for MultisafepayPaymentsRequest {
     type Error = error_stack::Report<errors::ConnectorError>;
-    fn try_from(_item: &types::PaymentsAuthorizeRouterData) -> Result<Self,Self::Error> {
+    fn try_from(_item: &types::PaymentsAuthorizeRouterData) -> Result<Self, Self::Error> {
         todo!()
     }
 }
@@ -15,10 +53,10 @@ impl TryFrom<&types::PaymentsAuthorizeRouterData> for MultisafepayPaymentsReques
 //TODO: Fill the struct with respective fields
 // Auth Struct
 pub struct MultisafepayAuthType {
-    pub(super) api_key: String
+    pub(super) api_key: String,
 }
 
-impl TryFrom<&types::ConnectorAuthType> for MultisafepayAuthType  {
+impl TryFrom<&types::ConnectorAuthType> for MultisafepayAuthType {
     type Error = error_stack::Report<errors::ConnectorError>;
     fn try_from(_auth_type: &types::ConnectorAuthType) -> Result<Self, Self::Error> {
         todo!()
@@ -48,17 +86,41 @@ impl From<MultisafepayPaymentStatus> for enums::AttemptStatus {
 //TODO: Fill the struct with respective fields
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MultisafepayPaymentsResponse {
+    success: bool,
+    data: MultisafepayPaymentsData,
     status: MultisafepayPaymentStatus,
-    id: String,
 }
 
-impl<F,T> TryFrom<types::ResponseRouterData<F, MultisafepayPaymentsResponse, T, types::PaymentsResponseData>> for types::RouterData<F, T, types::PaymentsResponseData> {
+#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MultisafepayPaymentsData {
+    gateway: String,
+    order_id: String,
+    currency: String,
+    amount: i32,
+    description: String,
+    payment_options: MultisafepayPaymentOptions,
+    customer: MultisafepayCustomer,
+    checkout_options: MultisafeCheckoutOptions,
+}
+
+impl<F, T>
+    TryFrom<
+        types::ResponseRouterData<F, MultisafepayPaymentsResponse, T, types::PaymentsResponseData>,
+    > for types::RouterData<F, T, types::PaymentsResponseData>
+{
     type Error = error_stack::Report<errors::ParsingError>;
-    fn try_from(item: types::ResponseRouterData<F, MultisafepayPaymentsResponse, T, types::PaymentsResponseData>) -> Result<Self,Self::Error> {
+    fn try_from(
+        item: types::ResponseRouterData<
+            F,
+            MultisafepayPaymentsResponse,
+            T,
+            types::PaymentsResponseData,
+        >,
+    ) -> Result<Self, Self::Error> {
         Ok(Self {
             status: enums::AttemptStatus::from(item.response.status),
             response: Ok(types::PaymentsResponseData::TransactionResponse {
-                resource_id: types::ResponseId::ConnectorTransactionId(item.response.id),
+                resource_id: types::ResponseId::ConnectorTransactionId(item.response.data.order_id),
                 redirection_data: None,
                 redirect: false,
                 mandate_reference: None,
@@ -77,8 +139,8 @@ pub struct MultisafepayRefundRequest {}
 
 impl<F> TryFrom<&types::RefundsRouterData<F>> for MultisafepayRefundRequest {
     type Error = error_stack::Report<errors::ParsingError>;
-    fn try_from(_item: &types::RefundsRouterData<F>) -> Result<Self,Self::Error> {
-       todo!()
+    fn try_from(_item: &types::RefundsRouterData<F>) -> Result<Self, Self::Error> {
+        todo!()
     }
 }
 
@@ -106,8 +168,7 @@ impl From<RefundStatus> for enums::RefundStatus {
 
 //TODO: Fill the struct with respective fields
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
-pub struct RefundResponse {
-}
+pub struct RefundResponse {}
 
 impl TryFrom<types::RefundsResponseRouterData<api::Execute, RefundResponse>>
     for types::RefundsRouterData<api::Execute>
@@ -120,13 +181,16 @@ impl TryFrom<types::RefundsResponseRouterData<api::Execute, RefundResponse>>
     }
 }
 
-impl TryFrom<types::RefundsResponseRouterData<api::RSync, RefundResponse>> for types::RefundsRouterData<api::RSync>
+impl TryFrom<types::RefundsResponseRouterData<api::RSync, RefundResponse>>
+    for types::RefundsRouterData<api::RSync>
 {
-     type Error = error_stack::Report<errors::ParsingError>;
-    fn try_from(_item: types::RefundsResponseRouterData<api::RSync, RefundResponse>) -> Result<Self,Self::Error> {
-         todo!()
-     }
- }
+    type Error = error_stack::Report<errors::ParsingError>;
+    fn try_from(
+        _item: types::RefundsResponseRouterData<api::RSync, RefundResponse>,
+    ) -> Result<Self, Self::Error> {
+        todo!()
+    }
+}
 
 //TODO: Fill the struct with respective fields
 #[derive(Default, Debug, Serialize, Deserialize, PartialEq)]
