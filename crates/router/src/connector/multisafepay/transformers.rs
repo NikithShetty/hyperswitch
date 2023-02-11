@@ -66,6 +66,20 @@ impl TryFrom<&types::PaymentsAuthorizeRouterData> for MultisafepayPaymentsReques
     }
 }
 
+#[derive(Default, Debug, Serialize, Eq, PartialEq)]
+pub struct MultisafepayCaptureRequest {
+    amount_to_capture: Option<i64>,
+}
+
+impl TryFrom<&types::PaymentsCaptureRouterData> for MultisafepayCaptureRequest {
+    type Error = error_stack::Report<errors::ConnectorError>;
+    fn try_from(item: &types::PaymentsCaptureRouterData) -> Result<Self, Self::Error> {
+        Ok(Self {
+            amount_to_capture: item.request.amount_to_capture,
+        })
+    }
+}
+
 //TODO: Fill the struct with respective fields
 // Auth Struct
 pub struct MultisafepayAuthType {
@@ -74,8 +88,14 @@ pub struct MultisafepayAuthType {
 
 impl TryFrom<&types::ConnectorAuthType> for MultisafepayAuthType {
     type Error = error_stack::Report<errors::ConnectorError>;
-    fn try_from(_auth_type: &types::ConnectorAuthType) -> Result<Self, Self::Error> {
-        todo!()
+    fn try_from(auth_type: &types::ConnectorAuthType) -> Result<Self, Self::Error> {
+        if let types::ConnectorAuthType::HeaderKey { api_key } = auth_type {
+            Ok(Self {
+                api_key: api_key.to_string(),
+            })
+        } else {
+            Err(errors::ConnectorError::FailedToObtainAuthType)?
+        }
     }
 }
 // PaymentsResponse

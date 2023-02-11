@@ -200,9 +200,12 @@ impl ConnectorIntegration<api::Capture, types::PaymentsCaptureData, types::Payme
 
     fn get_request_body(
         &self,
-        _req: &types::PaymentsCaptureRouterData,
+        req: &types::PaymentsCaptureRouterData,
     ) -> CustomResult<Option<String>, errors::ConnectorError> {
-        todo!()
+        let multisafepay_req =
+        utils::Encode::<multisafepay::MultisafepayCaptureRequest>::convert_and_encode(req)
+            .change_context(errors::ConnectorError::RequestEncodingFailed)?;
+        Ok(Some(multisafepay_req))
     }
 
     fn build_request(
