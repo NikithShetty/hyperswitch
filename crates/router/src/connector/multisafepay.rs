@@ -1,32 +1,33 @@
 mod transformers;
 
+use error_stack::{IntoReport, ResultExt};
 use std::fmt::Debug;
-use error_stack::{ResultExt, IntoReport};
 
 use crate::{
     configs::settings,
-    utils::{self, BytesExt},
     core::{
         errors::{self, CustomResult},
         payments,
     },
-    headers, logger, services::{self, ConnectorIntegration},
+    headers, logger,
+    services::{self, ConnectorIntegration},
     types::{
         self,
         api::{self, ConnectorCommon, ConnectorCommonExt},
         ErrorResponse, Response,
-    }
+    },
+    utils::{self, BytesExt},
 };
-
 
 use transformers as multisafepay;
 
 #[derive(Debug, Clone)]
 pub struct Multisafepay;
 
-impl<Flow, Request, Response> ConnectorCommonExt<Flow, Request, Response> for Multisafepay 
+impl<Flow, Request, Response> ConnectorCommonExt<Flow, Request, Response> for Multisafepay
 where
-    Self: ConnectorIntegration<Flow, Request, Response>,{
+    Self: ConnectorIntegration<Flow, Request, Response>,
+{
     fn build_headers(
         &self,
         _req: &types::RouterData<Flow, Request, Response>,
@@ -50,13 +51,13 @@ where
         req: &types::RouterData<Flow, Request, Response>,
         _connectors: &settings::Connectors,
     ) -> CustomResult<String, errors::ConnectorError> {
-            let auth_type:&types::ConnectorAuthType = &req.connector_auth_type;
-            let auth: multisafepay::MultisafepayAuthType = auth_type
-                .try_into()
-                .change_context(errors::ConnectorError::FailedToObtainAuthType)?;
-            Ok (format!("api_key={}", auth.api_key))
-        }
+        let auth_type: &types::ConnectorAuthType = &req.connector_auth_type;
+        let auth: multisafepay::MultisafepayAuthType = auth_type
+            .try_into()
+            .change_context(errors::ConnectorError::FailedToObtainAuthType)?;
+        Ok(format!("api_key={}", auth.api_key))
     }
+}
 
 impl ConnectorCommon for Multisafepay {
     fn id(&self) -> &'static str {
@@ -75,24 +76,17 @@ impl ConnectorCommon for Multisafepay {
 impl api::Payment for Multisafepay {}
 
 impl api::PreVerify for Multisafepay {}
-impl
-    ConnectorIntegration<
-        api::Verify,
-        types::VerifyRequestData,
-        types::PaymentsResponseData,
-    > for Multisafepay
+impl ConnectorIntegration<api::Verify, types::VerifyRequestData, types::PaymentsResponseData>
+    for Multisafepay
 {
 }
 
 impl api::PaymentVoid for Multisafepay {}
 
-impl
-    ConnectorIntegration<
-        api::Void,
-        types::PaymentsCancelData,
-        types::PaymentsResponseData,
-    > for Multisafepay
-{}
+impl ConnectorIntegration<api::Void, types::PaymentsCancelData, types::PaymentsResponseData>
+    for Multisafepay
+{
+}
 
 impl api::ConnectorAccessToken for Multisafepay {}
 
@@ -102,8 +96,7 @@ impl ConnectorIntegration<api::AccessTokenAuth, types::AccessTokenRequestData, t
 }
 
 impl api::PaymentSync for Multisafepay {}
-impl
-    ConnectorIntegration<api::PSync, types::PaymentsSyncData, types::PaymentsResponseData>
+impl ConnectorIntegration<api::PSync, types::PaymentsSyncData, types::PaymentsResponseData>
     for Multisafepay
 {
     fn get_headers(
@@ -118,10 +111,20 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(&self, req: &types::PaymentsSyncRouterData, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
-        let query_params = self.build_query_params(req, connectors)
+    fn get_url(
+        &self,
+        req: &types::PaymentsSyncRouterData,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<String, errors::ConnectorError> {
+        let query_params = self
+            .build_query_params(req, connectors)
             .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
-        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
+        Ok(format!(
+            "{}json/orders/{}?{}",
+            self.base_url(connectors),
+            req.payment_id,
+            query_params
+        ))
     }
 
     fn build_request(
@@ -151,7 +154,7 @@ impl
         res: Response,
     ) -> CustomResult<types::PaymentsSyncRouterData, errors::ConnectorError> {
         logger::debug!(payment_sync_response=?res);
-        let response: multisafepay:: MultisafepayPaymentsResponse = res
+        let response: multisafepay::MultisafepayPaymentsResponse = res
             .response
             .parse_struct("multisafepay PaymentsResponse")
             .change_context(errors::ConnectorError::ResponseDeserializationFailed)?;
@@ -164,14 +167,9 @@ impl
     }
 }
 
-
 impl api::PaymentCapture for Multisafepay {}
-impl
-    ConnectorIntegration<
-        api::Capture,
-        types::PaymentsCaptureData,
-        types::PaymentsResponseData,
-    > for Multisafepay
+impl ConnectorIntegration<api::Capture, types::PaymentsCaptureData, types::PaymentsResponseData>
+    for Multisafepay
 {
     fn get_headers(
         &self,
@@ -185,10 +183,19 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(&self, req: &types::PaymentsCaptureRouterData, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
-        let query_params = self.build_query_params(req, connectors)
+    fn get_url(
+        &self,
+        req: &types::PaymentsCaptureRouterData,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<String, errors::ConnectorError> {
+        let query_params = self
+            .build_query_params(req, connectors)
             .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
-        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
+        Ok(format!(
+            "{}json/orders?{}",
+            self.base_url(connectors),
+            query_params
+        ))
     }
 
     fn get_request_body(
@@ -243,25 +250,22 @@ impl
 
 impl api::PaymentSession for Multisafepay {}
 
-impl
-    ConnectorIntegration<
-        api::Session,
-        types::PaymentsSessionData,
-        types::PaymentsResponseData,
-    > for Multisafepay
+impl ConnectorIntegration<api::Session, types::PaymentsSessionData, types::PaymentsResponseData>
+    for Multisafepay
 {
     //TODO: implement sessions flow
 }
 
 impl api::PaymentAuthorize for Multisafepay {}
 
-impl
-    ConnectorIntegration<
-        api::Authorize,
-        types::PaymentsAuthorizeData,
-        types::PaymentsResponseData,
-    > for Multisafepay {
-    fn get_headers(&self, req: &types::PaymentsAuthorizeRouterData, connectors: &settings::Connectors,) -> CustomResult<Vec<(String, String)>,errors::ConnectorError> {
+impl ConnectorIntegration<api::Authorize, types::PaymentsAuthorizeData, types::PaymentsResponseData>
+    for Multisafepay
+{
+    fn get_headers(
+        &self,
+        req: &types::PaymentsAuthorizeRouterData,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<Vec<(String, String)>, errors::ConnectorError> {
         self.build_headers(req, connectors)
     }
 
@@ -269,15 +273,28 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(&self, req: &types::PaymentsAuthorizeRouterData, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
-        let query_params = self.build_query_params(req, connectors)
+    fn get_url(
+        &self,
+        req: &types::PaymentsAuthorizeRouterData,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<String, errors::ConnectorError> {
+        let query_params = self
+            .build_query_params(req, connectors)
             .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
-        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
+        Ok(format!(
+            "{}json/orders?{}",
+            self.base_url(connectors),
+            query_params
+        ))
     }
 
-    fn get_request_body(&self, req: &types::PaymentsAuthorizeRouterData) -> CustomResult<Option<String>,errors::ConnectorError> {
+    fn get_request_body(
+        &self,
+        req: &types::PaymentsAuthorizeRouterData,
+    ) -> CustomResult<Option<String>, errors::ConnectorError> {
         let multisafepay_req =
-            utils::Encode::<multisafepay::MultisafepayPaymentsRequest>::convert_and_encode(req).change_context(errors::ConnectorError::RequestEncodingFailed)?;
+            utils::Encode::<multisafepay::MultisafepayPaymentsRequest>::convert_and_encode(req)
+                .change_context(errors::ConnectorError::RequestEncodingFailed)?;
         Ok(Some(multisafepay_req))
     }
 
@@ -304,8 +321,11 @@ impl
         &self,
         data: &types::PaymentsAuthorizeRouterData,
         res: Response,
-    ) -> CustomResult<types::PaymentsAuthorizeRouterData,errors::ConnectorError> {
-        let response: multisafepay::MultisafepayPaymentsResponse = res.response.parse_struct("PaymentIntentResponse").change_context(errors::ConnectorError::ResponseDeserializationFailed)?;
+    ) -> CustomResult<types::PaymentsAuthorizeRouterData, errors::ConnectorError> {
+        let response: multisafepay::MultisafepayPaymentsResponse = res
+            .response
+            .parse_struct("PaymentIntentResponse")
+            .change_context(errors::ConnectorError::ResponseDeserializationFailed)?;
         logger::debug!(multisafepaypayments_create_response=?response);
         types::ResponseRouterData {
             response,
@@ -316,7 +336,10 @@ impl
         .change_context(errors::ConnectorError::ResponseHandlingFailed)
     }
 
-    fn get_error_response(&self, res: Response) -> CustomResult<ErrorResponse,errors::ConnectorError> {
+    fn get_error_response(
+        &self,
+        res: Response,
+    ) -> CustomResult<ErrorResponse, errors::ConnectorError> {
         self.build_error_response(res)
     }
 }
@@ -325,13 +348,14 @@ impl api::Refund for Multisafepay {}
 impl api::RefundExecute for Multisafepay {}
 impl api::RefundSync for Multisafepay {}
 
-impl
-    ConnectorIntegration<
-        api::Execute,
-        types::RefundsData,
-        types::RefundsResponseData,
-    > for Multisafepay {
-    fn get_headers(&self, req: &types::RefundsRouterData<api::Execute>, connectors: &settings::Connectors,) -> CustomResult<Vec<(String,String)>,errors::ConnectorError> {
+impl ConnectorIntegration<api::Execute, types::RefundsData, types::RefundsResponseData>
+    for Multisafepay
+{
+    fn get_headers(
+        &self,
+        req: &types::RefundsRouterData<api::Execute>,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<Vec<(String, String)>, errors::ConnectorError> {
         self.build_headers(req, connectors)
     }
 
@@ -339,22 +363,42 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(&self, req: &types::RefundsRouterData<api::Execute>, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
-        let query_params = self.build_query_params(req, connectors)
+    fn get_url(
+        &self,
+        req: &types::RefundsRouterData<api::Execute>,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<String, errors::ConnectorError> {
+        let query_params = self
+            .build_query_params(req, connectors)
             .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
-        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
+        Ok(format!(
+            "{}json/orders?{}",
+            self.base_url(connectors),
+            query_params
+        ))
     }
 
-    fn get_request_body(&self, req: &types::RefundsRouterData<api::Execute>) -> CustomResult<Option<String>,errors::ConnectorError> {
-        let multisafepay_req = utils::Encode::<multisafepay::MultisafepayRefundRequest>::convert_and_encode(req).change_context(errors::ConnectorError::RequestEncodingFailed)?;
+    fn get_request_body(
+        &self,
+        req: &types::RefundsRouterData<api::Execute>,
+    ) -> CustomResult<Option<String>, errors::ConnectorError> {
+        let multisafepay_req =
+            utils::Encode::<multisafepay::MultisafepayRefundRequest>::convert_and_encode(req)
+                .change_context(errors::ConnectorError::RequestEncodingFailed)?;
         Ok(Some(multisafepay_req))
     }
 
-    fn build_request(&self, req: &types::RefundsRouterData<api::Execute>, connectors: &settings::Connectors,) -> CustomResult<Option<services::Request>,errors::ConnectorError> {
+    fn build_request(
+        &self,
+        req: &types::RefundsRouterData<api::Execute>,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<Option<services::Request>, errors::ConnectorError> {
         let request = services::RequestBuilder::new()
             .method(services::Method::Post)
             .url(&types::RefundExecuteType::get_url(self, req, connectors)?)
-            .headers(types::RefundExecuteType::get_headers(self, req, connectors)?)
+            .headers(types::RefundExecuteType::get_headers(
+                self, req, connectors,
+            )?)
             .body(types::RefundExecuteType::get_request_body(self, req)?)
             .build();
         Ok(Some(request))
@@ -364,9 +408,12 @@ impl
         &self,
         data: &types::RefundsRouterData<api::Execute>,
         res: Response,
-    ) -> CustomResult<types::RefundsRouterData<api::Execute>,errors::ConnectorError> {
+    ) -> CustomResult<types::RefundsRouterData<api::Execute>, errors::ConnectorError> {
         logger::debug!(target: "router::connector::multisafepay", response=?res);
-        let response: multisafepay::RefundResponse = res.response.parse_struct("multisafepay RefundResponse").change_context(errors::ConnectorError::RequestEncodingFailed)?;
+        let response: multisafepay::RefundResponse = res
+            .response
+            .parse_struct("multisafepay RefundResponse")
+            .change_context(errors::ConnectorError::RequestEncodingFailed)?;
         types::ResponseRouterData {
             response,
             data: data.clone(),
@@ -376,14 +423,22 @@ impl
         .change_context(errors::ConnectorError::ResponseHandlingFailed)
     }
 
-    fn get_error_response(&self, res: Response) -> CustomResult<ErrorResponse,errors::ConnectorError> {
+    fn get_error_response(
+        &self,
+        res: Response,
+    ) -> CustomResult<ErrorResponse, errors::ConnectorError> {
         self.build_error_response(res)
     }
 }
 
-impl
-    ConnectorIntegration<api::RSync, types::RefundsData, types::RefundsResponseData> for Multisafepay {
-    fn get_headers(&self, req: &types::RefundSyncRouterData,connectors: &settings::Connectors,) -> CustomResult<Vec<(String, String)>,errors::ConnectorError> {
+impl ConnectorIntegration<api::RSync, types::RefundsData, types::RefundsResponseData>
+    for Multisafepay
+{
+    fn get_headers(
+        &self,
+        req: &types::RefundSyncRouterData,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<Vec<(String, String)>, errors::ConnectorError> {
         self.build_headers(req, connectors)
     }
 
@@ -391,10 +446,19 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(&self, req: &types::RefundSyncRouterData, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
-        let query_params = self.build_query_params(req, connectors)
+    fn get_url(
+        &self,
+        req: &types::RefundSyncRouterData,
+        connectors: &settings::Connectors,
+    ) -> CustomResult<String, errors::ConnectorError> {
+        let query_params = self
+            .build_query_params(req, connectors)
             .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
-        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
+        Ok(format!(
+            "{}json/orders?{}",
+            self.base_url(connectors),
+            query_params
+        ))
     }
 
     fn build_request(
@@ -416,9 +480,12 @@ impl
         &self,
         data: &types::RefundSyncRouterData,
         res: Response,
-    ) -> CustomResult<types::RefundSyncRouterData,errors::ConnectorError,> {
+    ) -> CustomResult<types::RefundSyncRouterData, errors::ConnectorError> {
         logger::debug!(target: "router::connector::multisafepay", response=?res);
-        let response: multisafepay::RefundResponse = res.response.parse_struct("multisafepay RefundResponse").change_context(errors::ConnectorError::ResponseDeserializationFailed)?;
+        let response: multisafepay::RefundResponse = res
+            .response
+            .parse_struct("multisafepay RefundResponse")
+            .change_context(errors::ConnectorError::ResponseDeserializationFailed)?;
         types::ResponseRouterData {
             response,
             data: data.clone(),
@@ -428,7 +495,10 @@ impl
         .change_context(errors::ConnectorError::ResponseHandlingFailed)
     }
 
-    fn get_error_response(&self, res: Response) -> CustomResult<ErrorResponse,errors::ConnectorError> {
+    fn get_error_response(
+        &self,
+        res: Response,
+    ) -> CustomResult<ErrorResponse, errors::ConnectorError> {
         self.build_error_response(res)
     }
 }
