@@ -84,6 +84,15 @@ pub trait ConnectorCommonExt<Flow, Req, Resp>:
     ) -> CustomResult<Vec<(String, String)>, errors::ConnectorError> {
         Ok(Vec::new())
     }
+
+    fn build_query_params(
+        &self,
+        _req: &types::RouterData<Flow, Req, Resp>,
+        _connectors: &Connectors,
+    ) -> CustomResult<String, errors::ConnectorError> {
+        Ok("".to_string())
+    }
+
 }
 
 pub trait Router {}

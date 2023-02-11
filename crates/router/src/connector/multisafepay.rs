@@ -32,9 +32,31 @@ where
         _req: &types::RouterData<Flow, Request, Response>,
         _connectors: &settings::Connectors,
     ) -> CustomResult<Vec<(String, String)>, errors::ConnectorError> {
-        todo!()
+        let mut headers = vec![
+            (
+                headers::CONTENT_TYPE.to_string(),
+                self.get_content_type().to_string(),
+            ),
+            (
+                headers::ACCEPT.to_string(),
+                self.get_content_type().to_string(),
+            ),
+        ];
+        Ok(headers)
     }
-}
+
+    fn build_query_params(
+        &self,
+        req: &types::RouterData<Flow, Request, Response>,
+        _connectors: &settings::Connectors,
+    ) -> CustomResult<String, errors::ConnectorError> {
+            let auth_type:&types::ConnectorAuthType = &req.connector_auth_type;
+            let auth: multisafepay::MultisafepayAuthType = auth_type
+                .try_into()
+                .change_context(errors::ConnectorError::FailedToObtainAuthType)?;
+            Ok (format!("api_key={}", auth.api_key))
+        }
+    }
 
 impl ConnectorCommon for Multisafepay {
     fn id(&self) -> &'static str {
@@ -42,19 +64,11 @@ impl ConnectorCommon for Multisafepay {
     }
 
     fn common_get_content_type(&self) -> &'static str {
-        todo!()
-        // Ex: "application/x-www-form-urlencoded"
+        "application/json"
     }
 
     fn base_url<'a>(&self, connectors: &'a settings::Connectors) -> &'a str {
         connectors.multisafepay.base_url.as_ref()
-    }
-
-    fn get_auth_header(&self, auth_type:&types::ConnectorAuthType)-> CustomResult<Vec<(String,String)>,errors::ConnectorError> {
-        let auth: multisafepay::MultisafepayAuthType = auth_type
-            .try_into()
-            .change_context(errors::ConnectorError::FailedToObtainAuthType)?;
-        Ok(vec![(headers::AUTHORIZATION.to_string(), auth.api_key)])
     }
 }
 
@@ -104,12 +118,10 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(
-        &self,
-        _req: &types::PaymentsSyncRouterData,
-        _connectors: &settings::Connectors,
-    ) -> CustomResult<String, errors::ConnectorError> {
-        todo!()
+    fn get_url(&self, req: &types::PaymentsSyncRouterData, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
+        let query_params = self.build_query_params(req, connectors)
+            .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
+        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
     }
 
     fn build_request(
@@ -173,12 +185,10 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(
-        &self,
-        _req: &types::PaymentsCaptureRouterData,
-        _connectors: &settings::Connectors,
-    ) -> CustomResult<String, errors::ConnectorError> {
-        todo!()
+    fn get_url(&self, req: &types::PaymentsCaptureRouterData, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
+        let query_params = self.build_query_params(req, connectors)
+            .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
+        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
     }
 
     fn get_request_body(
@@ -259,8 +269,10 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(&self, _req: &types::PaymentsAuthorizeRouterData, _connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
-        todo!()
+    fn get_url(&self, req: &types::PaymentsAuthorizeRouterData, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
+        let query_params = self.build_query_params(req, connectors)
+            .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
+        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
     }
 
     fn get_request_body(&self, req: &types::PaymentsAuthorizeRouterData) -> CustomResult<Option<String>,errors::ConnectorError> {
@@ -327,8 +339,10 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(&self, _req: &types::RefundsRouterData<api::Execute>, _connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
-        todo!()
+    fn get_url(&self, req: &types::RefundsRouterData<api::Execute>, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
+        let query_params = self.build_query_params(req, connectors)
+            .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
+        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
     }
 
     fn get_request_body(&self, req: &types::RefundsRouterData<api::Execute>) -> CustomResult<Option<String>,errors::ConnectorError> {
@@ -377,8 +391,10 @@ impl
         self.common_get_content_type()
     }
 
-    fn get_url(&self, _req: &types::RefundSyncRouterData,_connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
-        todo!()
+    fn get_url(&self, req: &types::RefundSyncRouterData, connectors: &settings::Connectors,) -> CustomResult<String,errors::ConnectorError> {
+        let query_params = self.build_query_params(req, connectors)
+            .change_context(errors::ConnectorError::FailedToObtainQueryParam)?;
+        Ok(format!("{}json/orders?{}", self.base_url(connectors), query_params))
     }
 
     fn build_request(

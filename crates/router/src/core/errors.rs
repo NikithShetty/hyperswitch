@@ -260,6 +260,8 @@ pub enum ConnectorError {
     WebhookResourceObjectNotFound,
     #[error("Invalid Date/time format")]
     InvalidDateFormat,
+    #[error("Error while obtaining query param for the URL")]
+    FailedToObtainQueryParam,
 }
 
 #[derive(Debug, thiserror::Error)]
